@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html class="h-full">
+  <head>
+    <title>Récepteur de données Bangle.js</title>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script src="https://www.puck-js.com/puck.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="index.js" defer></script>
+  </head>
+  <body class="bg-gray-50 h-full">
+    <div class="container mx-auto px-4 py-10 max-w-3xl">
+      <div class="bg-white rounded-xl shadow-md p-6 mb-6">
+        <button
+          id="connectButton"
+          class="w-full mb-3 bg-blue-500 hover:bg-blue-600 text-white font-medium py-3 px-6 rounded-lg transition-colors"
+        >
+          Connecter à Bangle.js
+        </button>
+        <button
+          id="saveButton"
+          class="hidden w-full mb-3 bg-green-500 hover:bg-green-600 text-white font-medium py-3 px-6 rounded-lg transition-colors"
+        >
+          Sauvegarder les données
+        </button>
+        <div id="connectionStatus" class="hidden rounded-lg p-4 mb-3"></div>
+        <div id="transferStatus" class="hidden rounded-lg p-4"></div>
+      </div>
+
+      <div class="bg-white rounded-xl shadow-md p-6">
+        <h3 class="text-xl font-semibold text-gray-900 mb-4">
+          Comment utiliser :
+        </h3>
+        <ol class="list-decimal ml-6 text-gray-600 space-y-2">
+          <li>
+            Ouvrez l'application d'enregistrement sur votre montre Bangle.js
+          </li>
+          <li>Cliquez sur "Connecter à Bangle.js" ci-dessus</li>
+          <li>Sélectionnez votre montre dans le menu popup</li>
+          <li>Sur votre montre, sélectionnez "Send via BT"</li>
+          <li>Attendez que le transfert soit terminé</li>
+          <li>
+            Cliquez sur "Sauvegarder les données" pour télécharger votre fichier
+            CSV
+          </li>
+        </ol>
+      </div>
+    </div>
+  </body>
+</html>
