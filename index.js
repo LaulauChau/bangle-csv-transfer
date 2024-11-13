@@ -1,6 +1,7 @@
 let connection;
-let receivedData = [];
-let isReceiving = false;
+let receivedData = "";
+let expectedSize = 0;
+let startTime;
 
 const connectionStatus = document.getElementById("connectionStatus");
 const transferStatus = document.getElementById("transferStatus");
@@ -8,111 +9,116 @@ const saveButton = document.getElementById("saveButton");
 const connectButton = document.getElementById("connectButton");
 
 const STATUS_CLASSES = {
-  success: "bg-green-100 text-green-800",
-  error: "bg-red-100 text-red-800",
-  info: "bg-blue-100 text-blue-800",
+	success: "bg-green-100 text-green-800",
+	error: "bg-red-100 text-red-800",
+	info: "bg-blue-100 text-blue-800",
 };
 
 function showStatus(element, message, type) {
-  element.textContent = message;
-  element.style.display = "block";
+	element.textContent = message;
+	element.style.display = "block";
 
-  // Remove any existing status classes
-  Object.values(STATUS_CLASSES).forEach((className) => {
-    element.classList.remove(...className.split(" "));
-  });
+	Object.values(STATUS_CLASSES).forEach((className) => {
+		element.classList.remove(...className.split(" "));
+	});
 
-  // Add new status classes
-  element.classList.add(...STATUS_CLASSES[type].split(" "));
+	element.classList.add(...STATUS_CLASSES[type].split(" "));
 }
 
-function hideStatus(element) {
-  element.style.display = "none";
+function formatFileSize(bytes) {
+	if (bytes < 1024) return bytes + " B";
+	if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(2) + " KB";
+	return (bytes / (1024 * 1024)).toFixed(2) + " MB";
 }
 
-document.getElementById("connectButton").addEventListener("click", function () {
-  showStatus(connectionStatus, "Recherche des appareils Bangle.js...", "info");
+document.getElementById("connectButton").addEventListener("click", () => {
+	showStatus(connectionStatus, "Recherche des appareils Bangle.js...", "info");
 
-  Puck.connect(function (c) {
-    if (!c) {
-      showStatus(
-        connectionStatus,
-        "Échec de la connexion. Veuillez réessayer.",
-        "error",
-      );
-      return;
-    }
+	Puck.connect((c) => {
+		if (!c) {
+			showStatus(
+				connectionStatus,
+				"Échec de la connexion. Veuillez réessayer.",
+				"error",
+			);
+			return;
+		}
 
-    connection = c;
-    showStatus(
-      connectionStatus,
-      "Connecté à Bangle.js ! Prêt à recevoir des données.",
-      "success",
-    );
-    connectButton.style.display = "none";
-    saveButton.style.display = "block";
+		connection = c;
+		showStatus(
+			connectionStatus,
+			"Connecté à Bangle.js ! Prêt à recevoir des données.",
+			"success",
+		);
+		connectButton.style.display = "none";
+		saveButton.style.display = "block";
 
-    let buffer = "";
+		connection.on("data", (data) => {
+			if (typeof data === "string" && data.startsWith("START:")) {
+				// New transfer starting
+				expectedSize = Number.parseInt(data.split(":")[1]);
+				receivedData = "";
+				startTime = Date.now();
+				showStatus(
+					transferStatus,
+					`Début du transfert... (Taille totale: ${formatFileSize(expectedSize)})`,
+					"info",
+				);
+				return;
+			}
 
-    connection.on("data", function (data) {
-      buffer += data;
-      const lines = buffer.split("\n");
-      buffer = lines.pop();
+			if (data === "END") {
+				// Transfer complete
+				const endTime = Date.now();
+				const transferTime = (endTime - startTime) / 1000; // seconds
+				const transferRate = (expectedSize / 1024 / transferTime).toFixed(2); // KB/s
+				showStatus(
+					transferStatus,
+					`Transfert terminé ! \nVitesse: ${transferRate} KB/s\nTemps: ${transferTime.toFixed(1)}s`,
+					"success",
+				);
+				return;
+			}
 
-      lines.forEach((line) => {
-        if (line.trim() === "<data>") {
-          isReceiving = true;
-          showStatus(transferStatus, "Réception des données...", "info");
-        } else if (line.trim() === "</data>") {
-          isReceiving = false;
-        } else if (line.trim() === "<end>") {
-          showStatus(
-            transferStatus,
-            `Transfert terminé ! ${receivedData.length} lignes de données reçues.`,
-            "success",
-          );
-        } else if (isReceiving && line.trim()) {
-          receivedData.push(line);
-          if (receivedData.length % 100 === 0) {
-            showStatus(
-              transferStatus,
-              `Réception des données... (${receivedData.length} lignes)`,
-              "info",
-            );
-          }
-        }
-      });
-    });
+			// Accumulate data
+			receivedData += data;
+			const progress = Math.floor((receivedData.length / expectedSize) * 100);
 
-    connection.on("disconnect", function () {
-      showStatus(connectionStatus, "Bangle.js déconnecté", "error");
-      connectButton.style.display = "block";
-      if (receivedData.length === 0) {
-        saveButton.style.display = "none";
-      }
-    });
-  });
+			// Update progress every 5%
+			if (progress % 5 === 0) {
+				showStatus(
+					transferStatus,
+					`Progression: ${progress}%\nReçu: ${formatFileSize(receivedData.length)}`,
+					"info",
+				);
+			}
+		});
+
+		connection.on("disconnect", () => {
+			showStatus(connectionStatus, "Bangle.js déconnecté", "error");
+			connectButton.style.display = "block";
+			if (!receivedData) {
+				saveButton.style.display = "none";
+			}
+		});
+	});
 });
 
-document.getElementById("saveButton").addEventListener("click", function () {
-  if (receivedData.length === 0) {
-    showStatus(transferStatus, "Pas de données à sauvegarder", "error");
-    return;
-  }
+document.getElementById("saveButton").addEventListener("click", () => {
+	if (!receivedData) {
+		showStatus(transferStatus, "Pas de données à sauvegarder", "error");
+		return;
+	}
 
-  const csvContent = receivedData.join("\n");
-  const blob = new Blob([csvContent], { type: "text/csv" });
-  const url = window.URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.setAttribute("href", url);
-  a.setAttribute(
-    "download",
-    `donnees_bangle_${new Date()
-      .toISOString()
-      .slice(0, 19)
-      .replace(/[:-]/g, "")}.csv`,
-  );
-  a.click();
+	const blob = new Blob([receivedData], { type: "text/csv" });
+	const url = window.URL.createObjectURL(blob);
+	const a = document.createElement("a");
+	a.setAttribute("href", url);
+	a.setAttribute(
+		"download",
+		`donnees_bangle_${new Date().toISOString().slice(0, 19).replace(/[:-]/g, "")}.csv`,
+	);
+	a.click();
 
-  showStatus(transferStatus, "Données sauvegardées avec succès !", "success");
+	showStatus(transferStatus, "Données sauvegardées avec succès !", "success");
 });
